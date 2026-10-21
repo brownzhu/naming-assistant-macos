@@ -1,0 +1,82 @@
+name: QuickRename
+options:
+  bundleIdPrefix: com.macrename
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+
+packages:
+  MacRenameCore:
+    path: .
+
+targets:
+  QuickRename:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/MacRenameApp
+        excludes:
+          - Info.plist
+      - path: Resources/AppIcon.icns
+        buildPhase: resources
+      - path: Sources/MacRenameApp/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    dependencies:
+      - package: MacRenameCore
+        product: MacRenameCore
+      - target: FinderExtension
+        embed: true
+        codeSign: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macrename.app
+        PRODUCT_NAME: QuickRename
+        INFOPLIST_FILE: Sources/MacRenameApp/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Sources/MacRenameApp/MacRename.entitlements
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        COMBINE_HIDPI_IMAGES: YES
+
+  FinderExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Sources/FinderExtension
+        excludes:
+          - Info.plist
+    dependencies:
+      - package: MacRenameCore
+        product: MacRenameCore
+      - sdk: FinderSync.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macrename.app.finder-extension
+        PRODUCT_NAME: FinderExtension
+        INFOPLIST_FILE: Sources/FinderExtension/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Sources/FinderExtension/FinderExtension.entitlements
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../../../../Frameworks"
+
+schemes:
+  QuickRename:
+    build:
+      targets:
+        QuickRename: all
+        FinderExtension: all
+    run:
+      config: Debug
+      executable: QuickRename
+    archive:
+      config: Release

@@ -1,0 +1,27 @@
+.DS_Store
+/.build
+/work/
+/Packages
+xcuserdata/
+DerivedData/
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.netrc
+.claude/
+PowerToys/
+APP_STORE.md
+.vscode/
+Resources/screenshots/
+*.xcodeproj
+*.xcworkspace
+!.swiftpm/**/*.xcworkspace
+
+# Local/private development artifacts
+PROGRESS.md
+/dist/
+/artifacts/
+*.app/
+*.dSYM/
+*.zip
+*.dmg
+.env
+.env.*

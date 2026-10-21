@@ -1,0 +1,62 @@
+# Naming Assistant · 文件命名助手 0.1
+
+这是基于 MacRename 修改的本地 macOS 应用。适用于 Apple Silicon Mac、macOS 14 或更新版本。保留原 MIT 版权与许可。交付应用名为 **Naming Assistant.app**；源码中的旧 Quick Rename 产品仅为上游保留代码，不属于本次安装包。
+
+## 命名与使用
+
+```text
+2026_10_20_research_cem_eit_uniqueness_proof_v01.pdf
+2026_10_research_cem_eit_project
+undated_admin_residence_permit_application.PDF
+```
+
+1. 打开应用，添加文件或将文件拖入列表。文件夹不会展开。
+   第一次使用某个目录时，系统文件选择器会要求你选择该对象的确切父文件夹，用于改名与冲突检查。取消授权就跳过该目录；不会要求整个“文稿”目录或完全磁盘访问权限。
+2. 逐项选择分类，核对英文简介与版本。文件默认版本 `1`，输出 `_v01`；可清空版本。已有英文名称自动整理为下划线形式；少量已知中文术语由内置词典提供建议。
+   点击“本机生成英文建议”可按原文件名尝试 Apple 本机模型；只更新简介，不执行改名。需要 macOS 26+、兼容设备、已启用且就绪的 Apple Intelligence。不可用时明确显示原因并退回词典；未知中文需要手填英文。不会自动启用 Apple Intelligence 或下载模型。
+3. 日期默认是 `undated`。只有核实资料本身的日期后，才勾选日期选项。程序不会把下载时间、修改时间或今天的日期自动当作原始日期。
+4. 点击“生成预览”，查看每一项的新名称和保护原因。已符合命名格式的对象默认不选中。
+5. 点击“确认改名”，核对确认窗口后执行。撤销前也会再次核对文件状态；应用重新启动后可恢复本机撤销记录。
+
+分类固定为 `life`、`research`、`engineering`、`learning`、`admin`。英文简介统一小写下划线；文件的完整后缀及大小写保留，例如 `.tar.gz`、`.nii.GZ`。
+
+## 键盘启动
+
+将应用复制到“应用程序”（`/Applications` 或 `~/Applications`）并打开一次后，在：
+
+**系统设置 → 键盘 → 键盘快捷键 → 服务 → 文件和文件夹**
+
+找到 **建议标准名称 / Suggest Standard Names**，设置为 **⌃⌥⌘N（Control + Option + Command + N）**。如有冲突，可选其他组合。MacBook 与 Mac mini 各设置一次。
+
+在 Finder 中选中文件后使用这个服务快捷键，可按需唤起命名窗口；应用不必一直运行。应用内也提供同一组合显示窗口。它不是在任意软件中读取当前文档的全局热键。程序不会自行修改系统快捷键。服务未出现时先确认应用已放到 Applications 并打开过；必要时注销后重新登录。
+
+macOS 可能先显示“运行受限制的服务”确认，因为该服务会请求文件改名。核对所选对象后可运行；随后仍需精确父目录授权、预览和应用内改名确认。不要为此关闭系统保护。
+
+Apple 的 [Services 安装要求](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/SysServices/Articles/providing.html)说明应用型服务应放在 Applications 目录；仅在下载或工作目录打开不保证显示服务。
+
+## 保护与实际边界
+
+- 预览不改文件；执行必须在预览后明确确认。
+- 仅处理显式选择的本机对象，不递归改名、不运行文件名中的命令、不改变文档内容。
+- 固定名称、代码和 TeX 后缀、已识别工程标记（如 `.git`、`Package.swift`、`main.tex`）、常见依赖目录（如 `Sources`、`src`、`Assets`、`Resources`）及应用包与资料库默认保护。已识别工程中的 PDF 也会被保护；可在工程外整理独立副本。
+- 保护规则无法识别所有自定义工程布局、文档链接或任意名称的祖先 Xcode 项目。为避免请求整盘权限，程序不会列举所有祖先目录；精确父目录授权和执行确认均要求你核实这些是可独立改名的资料。被引用的图片、数据等应先复制到独立导出目录。
+- 跳过符号链接、硬链接、特殊文件和其他用户可写的父目录。目标名称存在或大小写冲突时拒绝覆盖。
+- 执行前与撤销前核对文件身份及内容指纹。文件被替换或修改、原名被占用时会拒绝操作。
+- 首版仅允许空文件夹的外层改名；非空文件夹只提供建议。超过 512 MiB 的文件不执行改名。无法识别的复合后缀应人工复核。
+- 操作历史仅存本机，目录权限 0700、日志权限 0600。记录路径、文件标识和内容指纹，不保存文件正文。不应在两台机器之间同步撤销日志。
+- 不调用云端 AI、不上传正文、不读取 API 密钥、不后台监控全盘。本机建议只接收所选对象的原文件名主体；安全校验会在本地读取文件计算指纹。英文含义和分类需要人工核对；本机模型不读取正文、不会推断正文内容。
+- Apple 本机模型属于可选辅助路径，依据 [Apple Foundation Models 文档](https://developer.apple.com/documentation/foundationmodels/systemlanguagemodel)检查可用性。当前环境未完成模型输出质量验收；不要将建议等同于可靠翻译。内置词典与命名、安全流程可独立使用。
+- 内核排他改名避免覆盖目标；整个批次不是原子事务。中途失败会保留日志和部分结果，不会盲目回滚。中断恢复只核查状态，不自动移动文件。
+- 不能防御同一账户下持续恶意替换文件的其他程序。请在文件停止写入后使用；异常状态以核查结果为准，不承诺任意历史都可撤销。
+
+## 构建与检查
+
+```bash
+swift build --build-system native --product NamingAssistant
+bash scripts/test-naming-safety.sh
+bash scripts/package-naming-assistant.sh /absolute/output/folder
+```
+
+打包脚本仅向指定的输出目录写入应用，不安装到系统，不修改快捷键、不解除隔离属性。应用使用本机 ad-hoc 签名，没有 Developer ID 公证；不能将其描述为 Apple 公证发布版。首次打开若被系统拦截，应保留 macOS 的安全检查，不要关闭 Gatekeeper。
+
+上游：<https://github.com/simcrauk/MacRename>，起始提交 `3cdb3eb`。许可见 `LICENSE`。
