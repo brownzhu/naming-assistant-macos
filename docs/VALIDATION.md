@@ -21,3 +21,10 @@ All rename tests used disposable synthetic fixtures. Originals were restored and
 Regression coverage includes explicit/missing dates, timezone and extension rules, malformed/long names, no-confirm execution, preview-to-execute source changes, parent replacement, target races, case-fold/batch conflicts, links, Git/TeX/fixed names/common dependency folders, occupied undo originals, private journal permissions/schema/path validation, interrupted states, deferred/targeted recovery, large-file rejection and local glossary/model-disabled boundaries.
 
 Known limitations remain in [SECURITY.md](../SECURITY.md) and [ROADMAP.md](../ROADMAP.md).
+
+
+## 0.1.1 shortcut settings — 2026-10-22
+
+On the same macOS 27.0.1 host, the new main-window shortcut button and Command-comma opened the native Settings window. It displayed the recommended combination, service name and setup steps. Clicking the primary button opened the system Services keyboard-shortcut page directly; the service appeared under Files and Folders. The separate fallback button opened Keyboard settings. No shortcut binding or other system preference was changed during verification.
+
+Debug and release builds passed, the release signature and absence of private build paths were checked, and the local installation was updated to 0.1.1 while retaining the old app as a backup. Cross-version page routing remains best-effort; successful URL dispatch is not reported as completed shortcut setup. The rename coordinator and its safety rules were unchanged.

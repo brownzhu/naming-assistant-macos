@@ -6,6 +6,7 @@ import MacRenameCore
 @MainActor
 final class NamingAssistantDelegate: NSObject, NSApplicationDelegate {
     private var windowController: NamingWindowController?
+    private var settingsController: ShortcutSettingsWindowController?
     private let incomingStore = IncomingSelectionStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -62,12 +63,11 @@ final class NamingAssistantDelegate: NSObject, NSApplicationDelegate {
         windowController?.chooseFiles(sender)
     }
 
-    @objc private func showShortcutHelp(_ sender: Any?) {
-        let alert = NSAlert()
-        alert.messageText = "设置 Finder 快捷键"
-        alert.informativeText = "安装应用后，在系统设置 → 键盘 → 键盘快捷键 → 服务中找到“建议标准名称”，设置为 ⌃⌥⌘N。两台 Mac 需要各设置一次。\n\n在 Finder 选中文件后按快捷键，即可打开预览。应用内也可按同一组合显示窗口。若服务暂未出现，退出并重新打开 Finder，或注销后重新登录。应用不会修改你的系统快捷键。"
-        alert.addButton(withTitle: "知道了")
-        alert.runModal()
+    @objc func showSettings(_ sender: Any?) {
+        if settingsController == nil { settingsController = ShortcutSettingsWindowController() }
+        settingsController?.showWindow(sender)
+        settingsController?.window?.makeKeyAndOrderFront(sender)
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
     private func receive(_ urls: [URL]) {
@@ -85,7 +85,9 @@ final class NamingAssistantDelegate: NSObject, NSApplicationDelegate {
         let show = appMenu.addItem(withTitle: "显示命名窗口", action: #selector(showWindow(_:)), keyEquivalent: "n")
         show.keyEquivalentModifierMask = [.control, .option, .command]
         show.target = self
-        let shortcut = appMenu.addItem(withTitle: "设置 Finder 快捷键…", action: #selector(showShortcutHelp(_:)), keyEquivalent: "")
+        let settings = appMenu.addItem(withTitle: "设置…", action: #selector(showSettings(_:)), keyEquivalent: ",")
+        settings.target = self
+        let shortcut = appMenu.addItem(withTitle: "快捷键设置…", action: #selector(showSettings(_:)), keyEquivalent: "")
         shortcut.target = self
         appMenu.addItem(.separator())
         let servicesItem = NSMenuItem(title: "服务", action: nil, keyEquivalent: "")

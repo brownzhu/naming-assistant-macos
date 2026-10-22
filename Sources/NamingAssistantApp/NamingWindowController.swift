@@ -223,7 +223,9 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
         addButton.action = #selector(chooseFiles(_:))
         removeButton.target = self
         removeButton.action = #selector(removeSelected(_:))
-        let topButtons = NSStackView(views: [addButton, removeButton])
+        let shortcutSettings = NSButton(title: "快捷键设置…", target: NSApplication.shared.delegate, action: #selector(NamingAssistantDelegate.showSettings(_:)))
+        shortcutSettings.toolTip = "查看推荐快捷键，并跳转系统键盘设置"
+        let topButtons = NSStackView(views: [addButton, removeButton, shortcutSettings])
         topButtons.orientation = .horizontal
         topButtons.spacing = 10
 
