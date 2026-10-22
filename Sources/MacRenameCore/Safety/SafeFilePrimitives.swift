@@ -101,7 +101,7 @@ enum SafeFS {
         return SafeFileIdentity(value)
     }
 
-    static func names(in fd: Int32) throws -> [String] {
+    static func names(in fd: Int32, maximumCount: Int? = nil) throws -> [String] {
         let copied = dup(fd)
         guard copied >= 0 else { throw posix("Duplicate directory handle") }
         guard let directory = fdopendir(copied) else { close(copied); throw posix("Read directory") }
@@ -113,7 +113,10 @@ enum SafeFS {
             let name = withUnsafePointer(to: &entry.pointee.d_name) { pointer in
                 pointer.withMemoryRebound(to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1) { String(cString: $0) }
             }
-            if name != "." && name != ".." { result.append(name) }
+            if name != "." && name != ".." {
+                result.append(name)
+                if let maximumCount, result.count > maximumCount { throw fail("The directory exceeds the supported observation entry limit.") }
+            }
             errno = 0
         }
         guard errno == 0 else { throw posix("Read directory entries") }

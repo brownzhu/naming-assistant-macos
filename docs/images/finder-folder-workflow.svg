@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960" role="img" aria-labelledby="title description">
+  <title id="title">Finder 新文件夹建议：输入、选择、确认</title>
+  <desc id="description">首次在设置中选择一个目录并明确启用。保持应用运行，在 Finder 新建空文件夹，输入 test 并提交。名称稳定后显示不抢焦点的建议卡，同时列出 life、research、engineering、learning 和 admin 五个完整名称，单选一项并可编辑英文简介。test 没有明确分类证据，示例选中用户默认的 research。只有点击采用并通过安全复核才改名，操作写入本机 History，撤销前再次检查状态。这是原创流程示意，不是应用截图。</desc>
+  <defs>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif; }
+      .heading { font-size: 42px; font-weight: 700; fill: #15273d; }
+      .subheading { font-size: 23px; fill: #53667d; }
+      .step-title { font-size: 28px; font-weight: 650; fill: #15273d; }
+      .body { font-size: 21px; fill: #53667d; }
+      .small { font-size: 18px; fill: #53667d; }
+      .filename { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 23px; fill: #22364f; }
+      .number { font-size: 21px; font-weight: 700; fill: #ffffff; text-anchor: middle; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" viewBox="0 0 10 10">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#7a90aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="960" fill="#f3f6fb"/>
+  <text x="48" y="74" class="heading">在 Finder 取名，然后选一个完整名称。</text>
+  <text x="48" y="116" class="subheading">只给建议，等你确认。无需每次把新文件夹拖进 App。</text>
+  <rect x="1394" y="40" width="158" height="36" rx="18" fill="#e2eaf4"/>
+  <text x="1473" y="64" text-anchor="middle" font-size="18" font-weight="650" fill="#405772">流程示意</text>
+
+  <rect x="48" y="152" width="1504" height="64" rx="14" fill="#e7eef8"/>
+  <circle cx="81" cy="184" r="12" fill="#1467c2"/>
+  <path d="M75 184 L79 188 L87 179" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="106" y="192" font-size="22" font-weight="600" fill="#24415f">设置一次：选择一个生效目录并明确启用 · 授权仅存本机 · 保持 App 运行</text>
+
+  <rect x="48" y="250" width="330" height="556" rx="18" fill="#ffffff" stroke="#d7e1ed"/>
+  <circle cx="85" cy="290" r="18" fill="#1467c2"/>
+  <text x="85" y="297" class="number">1</text>
+  <text x="115" y="299" class="step-title">Finder 输入名字</text>
+  <text x="72" y="346" class="body">在生效目录中新建空文件夹</text>
+  <rect x="72" y="380" width="282" height="235" rx="12" fill="#f5f8fc" stroke="#e1e8f1"/>
+  <path d="M160 422 H193 L207 438 H265 V504 H160 Z" fill="#76b9ed"/>
+  <path d="M153 440 H271 L262 514 H160 Z" fill="#9bd4fb" stroke="#67ace0" stroke-width="2"/>
+  <rect x="113" y="544" width="200" height="42" rx="7" fill="#ffffff" stroke="#76a9e5" stroke-width="2"/>
+  <text x="213" y="573" text-anchor="middle" class="filename">test</text>
+  <text x="72" y="659" class="body">提交名称，继续你的操作</text>
+  <text x="72" y="697" class="small">约 1.2 秒稳定后显示建议</text>
+  <text x="72" y="728" class="small">卡片不抢 Finder 输入焦点</text>
+  <text x="72" y="772" font-size="17" fill="#7a8ca1">默认“未命名文件夹”等名称跳过</text>
+
+  <path d="M388 520 H414" stroke="#7a90aa" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="426" y="250" width="650" height="556" rx="18" fill="#ffffff" stroke="#d7e1ed"/>
+  <circle cx="463" cy="290" r="18" fill="#6d43b1"/>
+  <text x="463" y="297" class="number">2</text>
+  <text x="493" y="299" class="step-title">五类完整名称，单选一项</text>
+  <text x="450" y="344" class="small">test 无明确分类证据；示例使用用户默认分类 research</text>
+
+  <rect x="450" y="365" width="602" height="48" rx="9" fill="#f5f8fc"/>
+  <circle cx="473" cy="389" r="9" fill="#ffffff" stroke="#93a5ba" stroke-width="2"/>
+  <text x="497" y="397" class="filename">2026_10_life_test</text>
+
+  <rect x="450" y="420" width="602" height="48" rx="9" fill="#e8f1ff" stroke="#8fb4e6"/>
+  <circle cx="473" cy="444" r="9" fill="#ffffff" stroke="#1467c2" stroke-width="2"/>
+  <circle cx="473" cy="444" r="5" fill="#1467c2"/>
+  <text x="497" y="452" class="filename">2026_10_research_test</text>
+
+  <rect x="450" y="475" width="602" height="48" rx="9" fill="#f5f8fc"/>
+  <circle cx="473" cy="499" r="9" fill="#ffffff" stroke="#93a5ba" stroke-width="2"/>
+  <text x="497" y="507" class="filename">2026_10_engineering_test</text>
+
+  <rect x="450" y="530" width="602" height="48" rx="9" fill="#f5f8fc"/>
+  <circle cx="473" cy="554" r="9" fill="#ffffff" stroke="#93a5ba" stroke-width="2"/>
+  <text x="497" y="562" class="filename">2026_10_learning_test</text>
+
+  <rect x="450" y="585" width="602" height="48" rx="9" fill="#f5f8fc"/>
+  <circle cx="473" cy="609" r="9" fill="#ffffff" stroke="#93a5ba" stroke-width="2"/>
+  <text x="497" y="617" class="filename">2026_10_admin_test</text>
+
+  <text x="450" y="674" class="small">英文简介可修改</text>
+  <rect x="606" y="646" width="446" height="42" rx="7" fill="#ffffff" stroke="#cbd8e6"/>
+  <text x="622" y="674" class="filename">test</text>
+  <text x="450" y="730" class="small">明确关键词可推荐分类；五类始终可选</text>
+  <text x="450" y="768" font-size="17" fill="#7a8ca1">这里只用本地规则与关键词，不自动调用模型</text>
+
+  <path d="M1086 520 H1112" stroke="#7a90aa" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="1124" y="250" width="428" height="556" rx="18" fill="#ffffff" stroke="#d7e1ed"/>
+  <circle cx="1161" cy="290" r="18" fill="#137d66"/>
+  <text x="1161" y="297" class="number">3</text>
+  <text x="1191" y="299" class="step-title">确认后才改名</text>
+  <text x="1148" y="346" class="body">先安全预览，采用时再次核对</text>
+  <rect x="1148" y="377" width="380" height="76" rx="10" fill="#edf7f3"/>
+  <text x="1166" y="408" font-size="19" font-weight="600" fill="#17634f">身份 · 空目录 · 工程保护</text>
+  <text x="1166" y="436" font-size="19" fill="#347360">目标冲突检查 · 不覆盖</text>
+  <rect x="1148" y="477" width="176" height="46" rx="9" fill="#f0f3f8" stroke="#d5dfeb"/>
+  <text x="1236" y="508" text-anchor="middle" font-size="21" fill="#53667d">保留原名</text>
+  <rect x="1340" y="477" width="188" height="46" rx="9" fill="#1467c2"/>
+  <text x="1434" y="508" text-anchor="middle" font-size="21" font-weight="650" fill="#ffffff">采用</text>
+  <text x="1148" y="571" font-size="19" fill="#53667d">确认并通过复核后：</text>
+  <text x="1148" y="610" font-family="Menlo, Consolas, monospace" font-size="21" fill="#22364f">2026_10_research_test</text>
+  <path d="M1338 636 V668" stroke="#7a90aa" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="1148" y="708" class="body">本机 History 记录操作</text>
+  <text x="1148" y="743" class="small">需要时撤销；先重新检查状态</text>
+  <text x="1148" y="779" font-size="17" fill="#7a8ca1">没有确认，不会执行改名</text>
+
+  <rect x="48" y="834" width="1504" height="70" rx="14" fill="#15273d"/>
+  <text x="72" y="864" font-size="19" fill="#ffffff">仅对明确启用目录中新事件可识别的直接子空目录建议；不补做旧目录，不递归处理。</text>
+  <text x="72" y="892" font-size="17" fill="#cedceb">文件系统事件不保证证明人工新建：不确定时跳过，仍需手动确认。月份采用新文件夹模式的首次观察规则。</text>
+  <text x="48" y="938" font-size="16" fill="#687e98">原创流程示意，非应用截图。虚构文件名；示例月份为 2026 年 10 月。退出 App 后停止监听。</text>
+</svg>

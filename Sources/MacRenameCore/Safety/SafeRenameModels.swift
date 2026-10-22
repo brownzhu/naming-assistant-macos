@@ -3,10 +3,16 @@ import Foundation
 public struct SafeRenameRequest: Sendable {
     public let sourceURL: URL
     public let proposedName: String
+    public let expectedSourceIdentity: FolderAssistIdentity?
+    public let expectedParentIdentity: FolderAssistIdentity?
 
-    public init(sourceURL: URL, proposedName: String) {
+    public init(sourceURL: URL, proposedName: String,
+                expectedSourceIdentity: FolderAssistIdentity? = nil,
+                expectedParentIdentity: FolderAssistIdentity? = nil) {
         self.sourceURL = sourceURL
         self.proposedName = proposedName
+        self.expectedSourceIdentity = expectedSourceIdentity
+        self.expectedParentIdentity = expectedParentIdentity
     }
 }
 

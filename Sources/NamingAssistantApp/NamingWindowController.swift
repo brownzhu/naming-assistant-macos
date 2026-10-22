@@ -53,6 +53,7 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
     private var operationGeneration = 0
     private var requiresManualRecovery = false
     private var busy = false
+    private var externalHistoryPending = false
     private var authorizingSelection = false
     private var queuedSelections: [URL] = []
     private var parentAccess: [String: ParentAccessLease] = [:]
@@ -81,9 +82,8 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
         (.engineering, "工程 · engineering"), (.learning, "学习 · learning"), (.admin, "管理 · admin"),
     ]
 
-    init() {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        coordinator = SafeRenameCoordinator(journalDirectory: base.appendingPathComponent("NamingAssistant/History", isDirectory: true))
+    init(coordinator: SafeRenameCoordinator) {
+        self.coordinator = coordinator
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1160, height: 780), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Naming Assistant · 文件命名助手"
         window.minSize = NSSize(width: 940, height: 700)
@@ -95,6 +95,28 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
     }
 
     required init?(coder: NSCoder) { nil }
+
+    func retainGrantedParent(_ url: URL) {
+        let parent = url.standardizedFileURL
+        if parentAccess[parent.path] == nil { parentAccess[parent.path] = ParentAccessLease(url: url) }
+    }
+
+    func refreshExternalHistory() {
+        guard !busy else { externalHistoryPending = true; return }
+        externalHistoryPending = false
+        invalidatePreview()
+        Task {
+            do {
+                let history = try await coordinator.history(recoverInterrupted: false)
+                guard !busy else { externalHistoryPending = true; return }
+                selectHistory(history)
+                if requiresManualRecovery, let receipt = latestReceipt { summary.stringValue = recoveryMessage(receipt) }
+                updateControls()
+            } catch {
+                summary.stringValue = "无法读取历史记录：" + error.localizedDescription
+            }
+        }
+    }
 
     @objc func chooseFiles(_ sender: Any?) {
         guard !busy, let window else { return }
@@ -223,9 +245,10 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
         addButton.action = #selector(chooseFiles(_:))
         removeButton.target = self
         removeButton.action = #selector(removeSelected(_:))
-        let shortcutSettings = NSButton(title: "快捷键设置…", target: NSApplication.shared.delegate, action: #selector(NamingAssistantDelegate.showSettings(_:)))
+        let shortcutSettings = NSButton(title: "快捷键设置…", target: NSApplication.shared.delegate, action: #selector(NamingAssistantDelegate.showShortcutSettings(_:)))
         shortcutSettings.toolTip = "查看推荐快捷键，并跳转系统键盘设置"
-        let topButtons = NSStackView(views: [addButton, removeButton, shortcutSettings])
+        let folderSettings = NSButton(title: "新文件夹建议…", target: NSApplication.shared.delegate, action: #selector(NamingAssistantDelegate.showSettings(_:)))
+        let topButtons = NSStackView(views: [addButton, removeButton, folderSettings, shortcutSettings])
         topButtons.orientation = .horizontal
         topButtons.spacing = 10
 
@@ -765,6 +788,7 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
         if let message { summary.stringValue = message }
         updateControls()
         table.reloadData()
+        if !value, externalHistoryPending { refreshExternalHistory() }
     }
 
     private func updateControls() {

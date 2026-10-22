@@ -39,6 +39,11 @@ public actor SafeRenameCoordinator {
                 let fd = try SafeFS.openDirectory(parent)
                 defer { close(fd) }
                 let parentIdentity = try SafeFS.identity(fd: fd)
+                if let expected = request.expectedParentIdentity {
+                    guard FolderAssistIdentity(try SafeFS.folderAssistStat(fd: fd)) == expected else {
+                        throw SafeFS.fail("The observed parent folder was replaced; the suggestion is no longer valid.")
+                    }
+                }
                 guard parentIdentity.owner == getuid(), parentIdentity.mode & 0o022 == 0 else {
                     throw SafeFS.fail("The parent folder must belong to you and must not be writable by other users.")
                 }
@@ -59,6 +64,19 @@ public actor SafeRenameCoordinator {
                 guard targets.insert(targetKey).inserted else { throw SafeFS.fail("Multiple suggestions have the same case-insensitive destination.") }
                 try SafeFS.ensureDestinationAbsent(request.proposedName, parentFD: fd)
                 let (fingerprint, digest) = try SafeFS.fingerprint(name: source.lastPathComponent, parentFD: fd)
+                if let expected = request.expectedSourceIdentity {
+                    let current = try SafeFS.folderAssistStat(at: source.lastPathComponent, parentFD: fd)
+                    guard FolderAssistIdentity(current) == expected,
+                          current.st_mode & 0o022 == 0,
+                          fingerprint.sameObject(as: SafeFileIdentity(current)) else {
+                        throw SafeFS.fail("The observed folder was replaced or is writable by other users; the suggestion is no longer valid.")
+                    }
+                }
+                if let expected = request.expectedParentIdentity {
+                    guard FolderAssistIdentity(try SafeFS.folderAssistStat(fd: fd)) == expected else {
+                        throw SafeFS.fail("The observed parent folder changed while being checked.")
+                    }
+                }
                 snapshots.append(SafeFileSnapshot(parentURL: parent, sourceName: source.lastPathComponent,
                     destinationName: request.proposedName, parentIdentity: parentIdentity, identity: fingerprint, digest: digest))
             } catch { issues.append(error.localizedDescription) }
@@ -83,6 +101,12 @@ public actor SafeRenameCoordinator {
         // Validate every object before beginning; cycles/swaps are rejected by
         // destination-absence checks rather than using temporary filenames.
         for snapshot in snapshots { try validateBeforeRename(snapshot, undo: false) }
+        // Different UI entry points share this actor but may retain independent
+        // previews. Inspect only private journal metadata here; historical
+        // document paths must not be probed or recovered as a side effect.
+        guard try !history(recoverInterrupted: false).contains(where: \.requiresRecovery) else {
+            throw SafeFS.fail("An interrupted operation requires history recovery before a new rename.")
+        }
         var journal = SafeJournal(id: plan.id, records: snapshots.map { SafeJournalRecord(snapshot: $0, phase: .planned) })
         try writeJournal(journal)
         for index in journal.records.indices {
@@ -221,7 +245,8 @@ public actor SafeRenameCoordinator {
             }.map { $0.snapshot.parentURL })).sorted { $0.path < $1.path })
     }
 
-    private static func protectionCheck(source: URL, destinationName: String, isDirectory: Bool) throws {
+    static func protectionCheck(source: URL, destinationName: String, isDirectory: Bool,
+                                maximumDirectoryEntries: Int? = nil) throws {
         let protectedNames: Set<String> = ["agents.md", "skill.md", "claude.md", "makefile", "dockerfile", "gemfile", "rakefile", "license", "license.md", "readme", "readme.md", "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "cargo.toml", "cargo.lock", "package.swift", "package.resolved", "pyproject.toml", "setup.py", "requirements.txt", "cmakelists.txt", "go.mod", "go.sum", "project.yml", "info.plist", "main.tex", "thesis.tex"]
         let packageSuffixes = [".app", ".bundle", ".framework", ".plugin", ".photoslibrary", ".photolibrary", ".aplibrary", ".sparsebundle", ".xcodeproj", ".xcworkspace", ".pages", ".numbers", ".key"]
         let name = source.lastPathComponent.lowercased()
@@ -269,7 +294,7 @@ public actor SafeRenameCoordinator {
                 let parent = try SafeFS.openDirectory(folder)
                 let hasProject: Bool
                 do {
-                    hasProject = try SafeFS.names(in: parent).contains { $0.lowercased().hasSuffix(".xcodeproj") || $0.lowercased().hasSuffix(".xcworkspace") }
+                    hasProject = try SafeFS.names(in: parent, maximumCount: maximumDirectoryEntries).contains { $0.lowercased().hasSuffix(".xcodeproj") || $0.lowercased().hasSuffix(".xcworkspace") }
                     close(parent)
                 } catch { close(parent); throw error }
                 if hasProject { throw SafeFS.fail("The selected folder contains an Xcode project and is protected.") }

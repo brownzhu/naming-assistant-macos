@@ -8,11 +8,23 @@ final class NamingAssistantDelegate: NSObject, NSApplicationDelegate {
     private var windowController: NamingWindowController?
     private var settingsController: ShortcutSettingsWindowController?
     private let incomingStore = IncomingSelectionStore()
+    private let coordinator = SafeRenameCoordinator(journalDirectory: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("NamingAssistant/History", isDirectory: true))
+    private lazy var folderAssist: FolderAssistController = {
+        let controller = FolderAssistController(coordinator: coordinator)
+        controller.onOpenMain = { [weak self] in self?.showWindow(nil) }
+        controller.onOpenSettings = { [weak self] in self?.showSettings(nil) }
+        controller.onHistoryChange = { [weak self] root in
+            self?.windowController?.retainGrantedParent(root)
+            self?.windowController?.refreshExternalHistory()
+        }
+        return controller
+    }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         makeMenus()
         NSApplication.shared.servicesProvider = self
         NSUpdateDynamicServices()
+        folderAssist.start()
         showWindow(nil)
         receive(incomingStore.drain())
     }
@@ -23,6 +35,8 @@ final class NamingAssistantDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationWillTerminate(_ notification: Notification) { folderAssist.shutdown() }
 
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
         receive(filenames.map { URL(fileURLWithPath: $0) })
@@ -52,7 +66,9 @@ final class NamingAssistantDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showWindow(_ sender: Any?) {
-        if windowController == nil { windowController = NamingWindowController() }
+        if windowController == nil { windowController = NamingWindowController(coordinator: coordinator) }
+        if let root = folderAssist.authorizedRootURL { windowController?.retainGrantedParent(root) }
+        windowController?.refreshExternalHistory()
         windowController?.showWindow(sender)
         windowController?.window?.makeKeyAndOrderFront(sender)
         NSApplication.shared.activate(ignoringOtherApps: true)
@@ -64,7 +80,14 @@ final class NamingAssistantDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showSettings(_ sender: Any?) {
-        if settingsController == nil { settingsController = ShortcutSettingsWindowController() }
+        presentSettings(sender, shortcut: false)
+    }
+
+    @objc func showShortcutSettings(_ sender: Any?) { presentSettings(sender, shortcut: true) }
+
+    private func presentSettings(_ sender: Any?, shortcut: Bool) {
+        if settingsController == nil { settingsController = ShortcutSettingsWindowController(folderSettingsView: folderAssist.makeSettingsView()) }
+        settingsController?.selectShortcutTab(shortcut)
         settingsController?.showWindow(sender)
         settingsController?.window?.makeKeyAndOrderFront(sender)
         NSApplication.shared.activate(ignoringOtherApps: true)
@@ -85,9 +108,11 @@ final class NamingAssistantDelegate: NSObject, NSApplicationDelegate {
         let show = appMenu.addItem(withTitle: "显示命名窗口", action: #selector(showWindow(_:)), keyEquivalent: "n")
         show.keyEquivalentModifierMask = [.control, .option, .command]
         show.target = self
+        let suggestion = appMenu.addItem(withTitle: "查看当前文件夹建议…", action: #selector(FolderAssistController.openSuggestion(_:)), keyEquivalent: "")
+        suggestion.target = folderAssist
         let settings = appMenu.addItem(withTitle: "设置…", action: #selector(showSettings(_:)), keyEquivalent: ",")
         settings.target = self
-        let shortcut = appMenu.addItem(withTitle: "快捷键设置…", action: #selector(showSettings(_:)), keyEquivalent: "")
+        let shortcut = appMenu.addItem(withTitle: "快捷键设置…", action: #selector(showShortcutSettings(_:)), keyEquivalent: "")
         shortcut.target = self
         appMenu.addItem(.separator())
         let servicesItem = NSMenuItem(title: "服务", action: nil, keyEquivalent: "")

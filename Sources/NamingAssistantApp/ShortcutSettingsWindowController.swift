@@ -1,26 +1,58 @@
 import AppKit
 
-/// Opens only fixed macOS settings destinations. The user binds the service
-/// shortcut in System Settings; no preferences are read or modified here.
+/// Hosts folder suggestion settings and shortcut guidance. The shortcut page
+/// opens only fixed macOS settings destinations; it never edits system bindings.
 @MainActor
 final class ShortcutSettingsWindowController: NSWindowController {
     private let status = NSTextField(wrappingLabelWithString: "推荐组合；当前系统绑定状态未读取。每台 Mac 需要设置一次。")
+    private let tabs = NSTabView()
 
-    init() {
+    init(folderSettingsView: NSView) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 600),
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 720),
             styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "设置 · 命名助手"
         window.isReleasedWhenClosed = false
         super.init(window: window)
-        buildInterface()
+        buildInterface(folderSettingsView: folderSettingsView)
         window.center()
     }
 
     required init?(coder: NSCoder) { nil }
 
-    private func buildInterface() {
+    func selectShortcutTab(_ shortcut: Bool) {
+        tabs.selectTabViewItem(at: shortcut ? 1 : 0)
+    }
+
+    private func buildInterface(folderSettingsView: NSView) {
         guard let content = window?.contentView else { return }
+        tabs.tabViewType = .topTabsBezelBorder
+        tabs.font = .systemFont(ofSize: 13)
+        tabs.translatesAutoresizingMaskIntoConstraints = false
+
+        let folderTab = NSTabViewItem(identifier: "folderSuggestions")
+        folderTab.label = "新文件夹建议"
+        folderTab.view = folderSettingsView
+        tabs.addTabViewItem(folderTab)
+
+        let shortcutTab = NSTabViewItem(identifier: "shortcuts")
+        shortcutTab.label = "快捷键"
+        let shortcutView = NSView()
+        buildShortcutInterface(in: shortcutView)
+        shortcutTab.view = shortcutView
+        tabs.addTabViewItem(shortcutTab)
+
+        content.addSubview(tabs)
+        NSLayoutConstraint.activate([
+            tabs.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
+            tabs.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
+            tabs.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+            tabs.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -20),
+        ])
+        selectShortcutTab(false)
+    }
+
+    private func buildShortcutInterface(in content: NSView) {
         let title = NSTextField(labelWithString: "快捷启动")
         title.font = .systemFont(ofSize: 22, weight: .semibold)
         let introduction = label("在 Finder 中选中文件后，使用服务快捷键打开命名预览。")

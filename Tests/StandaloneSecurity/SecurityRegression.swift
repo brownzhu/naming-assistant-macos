@@ -73,8 +73,10 @@ struct ReviewFailure: Error, CustomStringConvertible { let description: String }
     }
     static func main() async throws {
         namingTests()
+        folderCategoryTests()
         await safetyTests()
         await localSuggesterTests()
+        await folderAssistTests()
         print("RESULT \(passed) passed, \(failed) failed")
         if failed > 0 { exit(1) }
     }

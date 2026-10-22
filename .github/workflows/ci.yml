@@ -26,5 +26,7 @@ jobs:
         run: swift --version
       - name: Standalone safety and naming regression checks
         run: bash scripts/test-naming-safety.sh
+      - name: Isolated folder event regression checks
+        run: bash scripts/test-folder-assist-monitor.sh
       - name: Build Naming Assistant
         run: swift build --build-system native --product NamingAssistant
