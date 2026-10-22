@@ -71,6 +71,8 @@ final class FolderAssistMonitor {
     )
 
     private let coordinator: SafeRenameCoordinator
+    private let initialCategoryTokens: [String]
+    private var categoryTokens: [String]
     private var root: FolderAssistRoot?
     private var enabledAt = Date.distantFuture
     private var generation = UUID()
@@ -84,12 +86,19 @@ final class FolderAssistMonitor {
     private var debounceDeadline: TimeInterval?
     private var settlingSession: UUID?
 
-    init(coordinator: SafeRenameCoordinator) { self.coordinator = coordinator }
+    init(coordinator: SafeRenameCoordinator, categoryTokens: [String] = []) {
+        self.coordinator = coordinator
+        initialCategoryTokens = categoryTokens
+        self.categoryTokens = categoryTokens
+    }
 
     /// The caller owns the root's user-selected security-scope lease for the
     /// whole watch session. Starting a second session invalidates the first.
-    func start(rootURL: URL) async throws {
+    func start(rootURL: URL, categoryTokens: [String] = []) async throws {
         stop()
+        // Initial tokens remain protected across sessions; the caller can
+        // additionally supply every current token, including hidden options.
+        self.categoryTokens = Array(Set(initialCategoryTokens + categoryTokens)).sorted()
         let session = generation
         do {
             let validated = try await coordinator.folderAssistRoot(at: rootURL)
@@ -321,7 +330,9 @@ final class FolderAssistMonitor {
     }
 
     private func shouldExclude(name: String) -> Bool {
-        name.isEmpty || name.hasPrefix(".") || NamingProfile.matchesStandardStem(name, kind: .projectFolder)
+        name.isEmpty || name.hasPrefix(".") || NamingProfile.matchesStandardStem(
+            name, kind: .projectFolder, categoryTokens: categoryTokens
+        )
     }
 
     private static func isPlaceholder(_ name: String) -> Bool {

@@ -74,6 +74,8 @@ struct ReviewFailure: Error, CustomStringConvertible { let description: String }
     static func main() async throws {
         namingTests()
         folderCategoryTests()
+        categoryPreferencesTests()
+        await glossaryPreferencesTests()
         await safetyTests()
         await localSuggesterTests()
         await folderAssistTests()

@@ -11,6 +11,7 @@ final class NamingAssistantDelegate: NSObject, NSApplicationDelegate {
     private let coordinator = SafeRenameCoordinator(journalDirectory: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("NamingAssistant/History", isDirectory: true))
     private lazy var folderAssist: FolderAssistController = {
         let controller = FolderAssistController(coordinator: coordinator)
+        controller.onRulesChange = { [weak self] in self?.windowController?.preferencesDidChange() }
         controller.onOpenMain = { [weak self] in self?.showWindow(nil) }
         controller.onOpenSettings = { [weak self] in self?.showSettings(nil) }
         controller.onHistoryChange = { [weak self] root in

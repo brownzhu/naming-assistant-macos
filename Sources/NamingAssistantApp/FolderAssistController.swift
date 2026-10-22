@@ -4,6 +4,7 @@ import MacRenameCore
 /// One explicitly granted root; no launch item, recursive watch, key hooks or AI.
 @MainActor
 final class FolderAssistController: NSObject {
+    var onRulesChange: (() -> Void)?
     var onOpenMain: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onHistoryChange: ((URL) -> Void)?
@@ -12,7 +13,12 @@ final class FolderAssistController: NSObject {
     private let defaults: UserDefaults
     private let enabledKey = "folderAssist.enabled.v1"
     private let bookmarkKey = "folderAssist.rootBookmark.v1"
-    private let categoryKey = "folderAssist.defaultCategory.v1"
+    private var categoryPreferences = NamingPreferencesStore.categories()
+    private var categoryEditor: CategoryPreferencesWindowController?
+    private var glossaryEditor: GlossarySettingsWindowController?
+    private var restartAfterApply = false
+    private let editCategories = NSButton(title: "编辑分类词…", target: nil, action: nil)
+    private let editGlossary = NSButton(title: "编辑词语转换…", target: nil, action: nil)
     private var grantedURL: URL?
     private var scoped = false
     private var generation = 0
@@ -32,7 +38,6 @@ final class FolderAssistController: NSObject {
     private let choose = NSButton(title: "选择文件夹…", target: nil, action: nil)
     private let forget = NSButton(title: "移除授权", target: nil, action: nil)
     private let categoryPopup = NSPopUpButton()
-    private let categoryLabels = ["生活 · life", "科研 · research", "工程 · engineering", "学习 · learning", "管理 · admin"]
 
     init(coordinator: SafeRenameCoordinator, defaults: UserDefaults = .standard) {
         self.coordinator = coordinator
@@ -100,13 +105,18 @@ final class FolderAssistController: NSObject {
         enabled.target = self
         enabled.action = #selector(toggleEnabled(_:))
         let categoryTitle = label("没有明确分类线索时，默认选中")
-        categoryPopup.addItems(withTitles: categoryLabels)
-        categoryPopup.selectItem(at: NamingCategory.allCases.firstIndex(of: defaultCategory) ?? 1)
+        refreshCategoryPopup()
         categoryPopup.target = self
         categoryPopup.action = #selector(changeDefaultCategory(_:))
         let categoryRow = NSStackView(views: [categoryTitle, categoryPopup])
         categoryRow.spacing = 12
-        let choices = label("卡片始终提供生活、科研、工程、学习、管理五个完整名称，单选一个后点击“采用所选名称”。明确的输入词会给出分类推荐。")
+        editCategories.target = self
+        editCategories.action = #selector(openCategoryEditor(_:))
+        editGlossary.target = self
+        editGlossary.action = #selector(openGlossaryEditor(_:))
+        let ruleButtons = NSStackView(views: [editCategories, editGlossary])
+        ruleButtons.spacing = 12
+        let choices = label("初始显示五类。可增删分类、调整顺序、勾选显示数量，也可修改原词到英文的转换。输入有明确关键词时会推荐，最终由你选择。")
         let example = label("例如 test → 2026_10_research_test\n日期使用新文件夹的创建月份（Europe/Berlin）。")
         example.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         let scope = label("只对启用后新建的空文件夹建议；已有文件夹、子层级、工程及固定名称会跳过。复制或解压也可能产生创建事件，因此每次都需要你确认。")
@@ -116,7 +126,7 @@ final class FolderAssistController: NSObject {
         statusLabel.font = .systemFont(ofSize: 12)
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.maximumNumberOfLines = 4
-        let stack = NSStackView(views: [title, introduction, rootTitle, rootLabel, rootButtons, enabled, categoryRow, choices, example, scope, lifecycle, statusLabel])
+        let stack = NSStackView(views: [title, introduction, rootTitle, rootLabel, rootButtons, enabled, categoryRow, ruleButtons, choices, example, scope, lifecycle, statusLabel])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 16
@@ -135,8 +145,45 @@ final class FolderAssistController: NSObject {
         return content
     }
 
-    private var defaultCategory: NamingCategory {
-        NamingCategory(rawValue: defaults.string(forKey: categoryKey) ?? "") ?? .research
+    private func refreshCategoryPopup() {
+        categoryPopup.removeAllItems()
+        categoryPopup.addItems(withTitles: categoryPreferences.visibleOptions.map { $0.label + " · " + $0.token })
+        categoryPopup.selectItem(at: categoryPreferences.visibleOptions.firstIndex(where: { $0.id == categoryPreferences.defaultID }) ?? 0)
+    }
+
+    @objc private func openCategoryEditor(_ sender: Any?) {
+        guard !applying, !configuring else { return }
+        let editor = CategoryPreferencesWindowController(preferences: categoryPreferences) { [weak self] value in
+            guard let self else { return }
+            guard !configuring else { throw AssistError.message("请等待目录启动或授权完成，再保存分类设置。") }
+            try NamingPreferencesStore.save(value)
+            categoryPreferences = value
+            onRulesChange?()
+            refreshCategoryPopup()
+            if applying { restartAfterApply = true }
+            else {
+                clearSuggestions()
+                if monitor.isRunning { startMonitoring() }
+            }
+            setStatus("分类规则已保存；之后的新建议使用这些分类和显示顺序。")
+
+        }
+        categoryEditor = editor
+        editor.showWindow(sender)
+        editor.window?.makeKeyAndOrderFront(sender)
+    }
+
+    @objc private func openGlossaryEditor(_ sender: Any?) {
+        guard !applying else { return }
+        let editor = GlossarySettingsWindowController { [weak self] in
+            guard let self else { return }
+            if !applying { clearSuggestions() }
+            onRulesChange?()
+            setStatus("词语转换已保存；之后生成的新建议使用更新后的词典。")
+        }
+        glossaryEditor = editor
+        editor.showWindow(sender)
+        editor.window?.makeKeyAndOrderFront(sender)
     }
 
     private func label(_ text: String) -> NSTextField {
@@ -206,8 +253,10 @@ final class FolderAssistController: NSObject {
     }
 
     @objc private func changeDefaultCategory(_ sender: Any?) {
-        guard NamingCategory.allCases.indices.contains(categoryPopup.indexOfSelectedItem) else { return }
-        defaults.set(NamingCategory.allCases[categoryPopup.indexOfSelectedItem].rawValue, forKey: categoryKey)
+        guard categoryPreferences.visibleOptions.indices.contains(categoryPopup.indexOfSelectedItem) else { return }
+        categoryPreferences.defaultID = categoryPreferences.visibleOptions[categoryPopup.indexOfSelectedItem].id
+        do { try NamingPreferencesStore.save(categoryPreferences) }
+        catch { setStatus("默认分类未保存：" + error.localizedDescription) }
     }
 
     @objc private func toggleEnabled(_ sender: Any?) {
@@ -234,7 +283,7 @@ final class FolderAssistController: NSObject {
         updateControls()
         Task {
             do {
-                try await monitor.start(rootURL: url)
+                try await monitor.start(rootURL: url, categoryTokens: categoryPreferences.options.map(\.token))
                 guard generation == current else { return }
                 defaults.set(true, forKey: enabledKey)
                 configuring = false
@@ -278,7 +327,7 @@ final class FolderAssistController: NSObject {
         guard card == nil, !applying, monitor.isRunning, !queue.isEmpty else { return }
         let observation = queue.removeFirst()
         active = observation
-        let panel = FolderSuggestionPanel(observation: observation, defaultCategory: defaultCategory,
+        let panel = FolderSuggestionPanel(observation: observation, preferences: categoryPreferences,
             coordinator: coordinator, onApply: { [weak self] plan in self?.apply(plan, observation: observation) },
             onIgnore: { [weak self] in self?.dismissActive() })
         card = panel
@@ -332,6 +381,10 @@ final class FolderAssistController: NSObject {
                 setStatus("改名未完成，可在主窗口检查历史。")
                 onHistoryChange?(observation.root.url)
             }
+            if restartAfterApply {
+                restartAfterApply = false
+                if monitor.isRunning { startMonitoring() }
+            }
             updateControls()
         }
     }
@@ -347,6 +400,8 @@ final class FolderAssistController: NSObject {
         rootLabel.stringValue = grantedURL?.path ?? "尚未选择"
         enabled.state = monitor.isRunning ? .on : .off
         enabled.isEnabled = !configuring && !applying && grantedURL != nil
+        editCategories.isEnabled = !applying && !configuring
+        editGlossary.isEnabled = !applying
         choose.isEnabled = !configuring && !applying
         forget.isEnabled = !configuring && !applying && grantedURL != nil
         toggleItem?.isEnabled = !configuring && !applying && grantedURL != nil

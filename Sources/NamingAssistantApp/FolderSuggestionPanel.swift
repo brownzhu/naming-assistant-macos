@@ -1,6 +1,11 @@
 import AppKit
 import MacRenameCore
 
+@MainActor
+private final class FolderCategoryChoicesDocumentView: NSView {
+    override var isFlipped: Bool { true }
+}
+
 /// A passive suggestion never activates the app or intercepts Finder's Return.
 /// Editing or applying happens only after the user clicks this panel.
 @MainActor
@@ -13,24 +18,31 @@ final class FolderSuggestionPanel: NSWindowController, NSTextFieldDelegate, NSWi
     private let status = NSTextField(wrappingLabelWithString: "正在检查新文件夹…")
     private let adopt = NSButton(title: "采用所选名称", target: nil, action: nil)
     private let ignore = NSButton(title: "忽略", target: nil, action: nil)
+    private let options: [NamingCategoryOption]
     private var choices: [NSButton] = []
-    private var category: NamingCategory
+    private var selectedCategoryID: String
     private var plan: SafeRenamePlan?
     private var revision = 0
     private var applying = false
     private let profile = NamingProfile()
-    private let labels = ["生活", "科研", "工程", "学习", "管理"]
 
-    init(observation: FolderAssistObservation, defaultCategory: NamingCategory,
+    init(observation: FolderAssistObservation, preferences: NamingCategoryPreferences,
          coordinator: SafeRenameCoordinator, onApply: @escaping (SafeRenamePlan) -> Void,
          onIgnore: @escaping () -> Void) {
         self.observation = observation
         self.coordinator = coordinator
         self.onApply = onApply
         self.onIgnore = onIgnore
-        let recommendation = FolderCategorySuggester.recommend(for: observation.sourceURL.lastPathComponent)
-        category = recommendation?.category ?? defaultCategory
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 680, height: 570),
+        let visibleOptions = preferences.visibleOptions
+        options = visibleOptions
+        let suggested = preferences.recommendation(for: observation.sourceURL.lastPathComponent)
+        let recommendation = suggested.flatMap { option in
+            visibleOptions.first(where: { $0.id == option.id })
+        }
+        selectedCategoryID = recommendation?.id
+            ?? visibleOptions.first(where: { $0.id == preferences.defaultID })?.id
+            ?? visibleOptions.first?.id ?? ""
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 680, height: 640),
                             styleMask: [.titled, .closable, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.title = "新文件夹命名建议"
         panel.isReleasedWhenClosed = false
@@ -50,7 +62,7 @@ final class FolderSuggestionPanel: NSWindowController, NSTextFieldDelegate, NSWi
 
     func presentPassively() { window?.orderFrontRegardless() }
 
-    private func buildInterface(_ recommendation: FolderCategoryRecommendation?) {
+    private func buildInterface(_ recommendation: NamingCategoryOption?) {
         guard let content = window?.contentView else { return }
         let title = NSTextField(labelWithString: "选一个分类，再确认名称")
         title.font = .systemFont(ofSize: 19, weight: .semibold)
@@ -62,7 +74,7 @@ final class FolderSuggestionPanel: NSWindowController, NSTextFieldDelegate, NSWi
         parent.maximumNumberOfLines = 2
         let explanation: String
         if let recommendation {
-            explanation = "推荐依据：" + recommendation.matchedKeywords.joined(separator: "、") + "。五种分类均可选择。"
+            explanation = "根据名称中的分类线索，推荐“" + recommendation.label + "”；你可以选择其他显示的分类。"
         } else {
             explanation = "这个名字没有明确的分类线索，已选用设置中的默认分类；请自行选择。"
         }
@@ -72,12 +84,48 @@ final class FolderSuggestionPanel: NSWindowController, NSTextFieldDelegate, NSWi
         descriptionField.placeholderString = "例如 test 或 literature_review"
         descriptionField.delegate = self
         descriptionField.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
-        descriptionField.stringValue = LocalNameSuggester.dictionarySuggestion(basename: observation.sourceURL.lastPathComponent).suggestion?.description ?? ""
-        for (index, item) in NamingCategory.allCases.enumerated() {
-            let button = NSButton(radioButtonWithTitle: labels[index] + " · " + item.rawValue, target: self, action: #selector(selectCategory(_:)))
-            button.tag = index
+        descriptionField.stringValue = LocalNameSuggester.dictionarySuggestion(
+            basename: observation.sourceURL.lastPathComponent, glossary: NamingPreferencesStore.glossary()
+        ).suggestion?.description ?? ""
+        for item in options {
+            let button = NSButton(radioButtonWithTitle: item.label + " · " + item.token, target: self, action: #selector(selectCategory(_:)))
+            button.identifier = NSUserInterfaceItemIdentifier(item.id)
             button.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+            button.cell?.lineBreakMode = .byTruncatingMiddle
+            button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             choices.append(button)
+        }
+        let choiceStack = NSStackView(views: choices)
+        choiceStack.orientation = .vertical
+        choiceStack.alignment = .leading
+        choiceStack.spacing = 8
+        choiceStack.translatesAutoresizingMaskIntoConstraints = false
+        let choiceDocument = FolderCategoryChoicesDocumentView()
+        choiceDocument.translatesAutoresizingMaskIntoConstraints = false
+        choiceDocument.addSubview(choiceStack)
+        let choiceScroll = NSScrollView()
+        choiceScroll.hasVerticalScroller = true
+        choiceScroll.hasHorizontalScroller = false
+        choiceScroll.autohidesScrollers = true
+        choiceScroll.borderType = .bezelBorder
+        choiceScroll.drawsBackground = false
+        choiceScroll.documentView = choiceDocument
+        let preferredHeight = choiceScroll.heightAnchor.constraint(equalToConstant: CGFloat(max(48, min(190, options.count * 28 + 16))))
+        preferredHeight.priority = .defaultHigh
+        NSLayoutConstraint.activate([
+            choiceDocument.leadingAnchor.constraint(equalTo: choiceScroll.contentView.leadingAnchor),
+            choiceDocument.topAnchor.constraint(equalTo: choiceScroll.contentView.topAnchor),
+            choiceDocument.widthAnchor.constraint(equalTo: choiceScroll.contentView.widthAnchor),
+            choiceStack.topAnchor.constraint(equalTo: choiceDocument.topAnchor, constant: 8),
+            choiceStack.leadingAnchor.constraint(equalTo: choiceDocument.leadingAnchor, constant: 8),
+            choiceStack.trailingAnchor.constraint(equalTo: choiceDocument.trailingAnchor, constant: -8),
+            choiceStack.bottomAnchor.constraint(equalTo: choiceDocument.bottomAnchor, constant: -8),
+            choiceScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 48),
+            choiceScroll.heightAnchor.constraint(lessThanOrEqualToConstant: 190),
+            preferredHeight,
+        ])
+        for button in choices {
+            button.widthAnchor.constraint(equalTo: choiceStack.widthAnchor).isActive = true
         }
         status.font = .systemFont(ofSize: 12)
         status.maximumNumberOfLines = 3
@@ -91,7 +139,7 @@ final class FolderSuggestionPanel: NSWindowController, NSTextFieldDelegate, NSWi
         ignore.action = #selector(dismiss(_:))
         let buttons = NSStackView(views: [ignore, adopt])
         buttons.spacing = 12
-        let stack = NSStackView(views: [title, original, parent, reason, english, descriptionField] + choices + [status, buttons])
+        let stack = NSStackView(views: [title, original, parent, reason, english, descriptionField, choiceScroll, status, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12
@@ -103,14 +151,15 @@ final class FolderSuggestionPanel: NSWindowController, NSTextFieldDelegate, NSWi
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -18),
         ])
-        for view in [original, parent, reason, descriptionField, status] as [NSView] {
+        for view in [original, parent, reason, descriptionField, choiceScroll, status] as [NSView] {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
     }
 
     @objc private func selectCategory(_ sender: NSButton) {
-        guard !applying, NamingCategory.allCases.indices.contains(sender.tag) else { return }
-        category = NamingCategory.allCases[sender.tag]
+        guard !applying, let id = sender.identifier?.rawValue,
+              options.contains(where: { $0.id == id }) else { return }
+        selectedCategoryID = id
         refreshPreview()
     }
 
@@ -122,16 +171,20 @@ final class FolderSuggestionPanel: NSWindowController, NSTextFieldDelegate, NSWi
         plan = nil
         adopt.isEnabled = false
         var names: [String] = []
-        for (index, item) in NamingCategory.allCases.enumerated() {
-            choices[index].state = category == item ? .on : .off
-            let request = NamingRequest(date: observation.createdAt, category: item,
+        for (index, item) in options.enumerated() {
+            choices[index].state = selectedCategoryID == item.id ? .on : .off
+            let request = NamingRequest(date: observation.createdAt, category: .research,
                                         description: descriptionField.stringValue, kind: .projectFolder)
-            let name = try? profile.suggestName(for: request)
-            choices[index].title = labels[index] + " · " + (name ?? "请先填写英文简介")
+            let name = try? profile.suggestName(for: request, categoryToken: item.token)
+            choices[index].title = item.label + " · " + (name ?? "请先填写英文简介")
             choices[index].toolTip = name
             names.append(name ?? "")
         }
-        guard let index = NamingCategory.allCases.firstIndex(of: category), !names[index].isEmpty else {
+        guard !options.isEmpty else {
+            status.stringValue = "请先在设置中至少显示一个分类。"
+            return
+        }
+        guard let index = options.firstIndex(where: { $0.id == selectedCategoryID }), !names[index].isEmpty else {
             status.stringValue = "请输入完整的英文简介。未知中文不会被截断或自动上传翻译。"
             return
         }

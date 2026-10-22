@@ -148,6 +148,20 @@ private struct MonitorRegression {
             try check(FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("eligible").path), "The monitor changed a folder name")
         }
 
+        await test("Configured category tokens preserve existing standard names") { fixture in
+            try await fixture.monitor.start(rootURL: fixture.root, categoryTokens: ["client_work"])
+            let standard = try fixture.mkdir("2026_10_client_work_contract")
+            try await stayQuiet(fixture, count: 0)
+            try fixture.mkdir("eligiblecustom")
+            try await waitUntil("A new eligible child after a custom standard name was not proposed") {
+                fixture.proposals.count == 1
+            }
+            try await stayQuiet(fixture, count: 1)
+            try check(fixture.proposals[0].sourceURL.lastPathComponent == "eligiblecustom",
+                      "An already standard custom-category folder was proposed")
+            try check(FileManager.default.fileExists(atPath: standard.path), "The custom standard name was changed")
+        }
+
         await test("Dismissal, guarded rename and undo do not prompt again") { fixture in
             try await fixture.monitor.start(rootURL: fixture.root)
             try fixture.mkdir("one_proposal")

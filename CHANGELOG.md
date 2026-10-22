@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-10-22 — editable categories and glossary
+
+- Added two local editors for category options and word conversions.
+- Started with the existing five categories while allowing 1–20 total options, at least one visible option, editable labels/tokens/keywords, visibility, ordering and a visible default. Batch naming and Finder-folder cards share the configuration; the card scrolls when needed.
+- Added a complete editable glossary of at most 100 `source = english_snake_case` entries. Built-in entries can be changed or deleted; a deleted conversion is not restored from an implicit fallback table. Unknown remaining text is not silently discarded.
+- Prioritized valid explicit local dictionary conversions. Editing or applying these preferences does not automatically call a model or upload data; the optional on-device model remains a separate user action.
+- Saved validated categories and the complete glossary in local `UserDefaults`; saving rules does not rename files or rewrite History. Existing preview, authorization, no-overwrite execution and state-checked undo remain in place.
+
+Validation recorded 128 standalone safety checks and 8 real-event checks passing, plus Debug/Release build and signature checks. Isolated GUI verification covered edited categories/glossary surviving restart, a four-option card recommending the custom category, adoption and undo; see [the validation record](docs/VALIDATION.md) for scope and platform limitations. The illustrations showing five categories represent the initial configuration. The 0.2.0 GUI verification remains separate historical evidence.
+
 ## 0.2.0 — 2026-10-22 — Finder new-folder suggestions
 
 - Added opt-in suggestions for newly created direct child empty folders in one selected root, with a locally saved security-scoped bookmark.

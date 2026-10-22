@@ -81,7 +81,8 @@ public struct LocalNameSuggester: Sendable {
     public func suggest(
         basename: String,
         userNote: String = "",
-        useOnDeviceModel: Bool = false
+        useOnDeviceModel: Bool = false,
+        glossary: NameGlossaryPreferences? = nil
     ) async -> LocalNameSuggestionResult {
         let availability = Self.modelAvailability()
         guard let input = Self.validatedInput(basename: basename, userNote: userNote) else {
@@ -89,6 +90,11 @@ public struct LocalNameSuggester: Sendable {
         }
         guard !Task.isCancelled else {
             return Self.result(.cancelled, availability: availability)
+        }
+        if let glossary {
+            guard (try? glossary.validated()) != nil else { return Self.result(.invalidInput, availability: availability) }
+            let local = Self.fallback(input, availability: availability, modelFailed: false, glossary: glossary)
+            if local.suggestion?.source == .localDictionary { return local }
         }
         var modelFailed = false
         #if canImport(FoundationModels)
@@ -113,20 +119,22 @@ public struct LocalNameSuggester: Sendable {
             }
         }
         #endif
-        return Self.fallback(input, availability: availability, modelFailed: modelFailed)
+        return Self.fallback(input, availability: availability, modelFailed: modelFailed, glossary: glossary)
     }
 
     /// Deterministic fallback for old systems, an unavailable model, or users
     /// who choose not to invoke the model. Never silently discards unknown text.
     public static func dictionarySuggestion(
         basename: String,
-        userNote: String = ""
+        userNote: String = "",
+        glossary: NameGlossaryPreferences? = nil
     ) -> LocalNameSuggestionResult {
         let availability = modelAvailability()
         guard let input = validatedInput(basename: basename, userNote: userNote) else {
             return result(.invalidInput, availability: availability)
         }
-        return fallback(input, availability: availability, modelFailed: false)
+        guard glossary == nil || (try? glossary?.validated()) != nil else { return result(.invalidInput, availability: availability) }
+        return fallback(input, availability: availability, modelFailed: false, glossary: glossary)
     }
 
     private struct Input: Sendable {
@@ -153,7 +161,7 @@ public struct LocalNameSuggester: Sendable {
     /// to execute. Prompts alone cannot defeat prompt injection. Constrained
     /// generation and this independent validator limit output shape; the
     /// caller's file-protection and preview layers remain authoritative.
-    private static func validatedDescription(_ text: String) -> String? {
+    static func validatedDescription(_ text: String) -> String? {
         guard !text.isEmpty, text.utf8.count <= 80,
               text.range(of: "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
                          options: .regularExpression) != nil,
@@ -188,18 +196,33 @@ public struct LocalNameSuggester: Sendable {
     private static func fallback(
         _ input: Input,
         availability: LocalNameModelAvailability,
-        modelFailed: Bool
+        modelFailed: Bool,
+        glossary: NameGlossaryPreferences? = nil
     ) -> LocalNameSuggestionResult {
         // A note is a deliberately supplied description. Do not mix unrelated
         // basename words into it or hide an untranslatable note behind a name.
         let sourceText = input.userNote.isEmpty ? stem(input.basename) : input.userNote
         var translated = sourceText
         var usedDictionary = false
-        for entry in dictionary {
-            if translated.contains(entry.0) {
-                translated = translated.replacingOccurrences(of: entry.0, with: " " + entry.1 + " ")
+        let entries = (glossary?.entries ?? defaultDictionary).sorted { $0.source.count > $1.source.count }
+        let alternatives = entries.map { entry in
+            let literal = NSRegularExpression.escapedPattern(for: entry.source)
+            return entry.source.unicodeScalars.allSatisfy(\.isASCII)
+                ? "(?<![a-z0-9])" + literal + "(?![a-z0-9])" : literal
+        }
+        if !alternatives.isEmpty,
+           let regex = try? NSRegularExpression(pattern: alternatives.joined(separator: "|"), options: [.caseInsensitive]) {
+            let matches = regex.matches(in: sourceText, range: NSRange(sourceText.startIndex..., in: sourceText))
+            let buffer = NSMutableString(string: sourceText)
+            // Match only original input. Targets never become new rule input.
+            for match in matches.reversed() {
+                guard let range = Range(match.range, in: sourceText) else { continue }
+                let matched = String(sourceText[range])
+                guard let entry = entries.first(where: { $0.source.compare(matched, options: .caseInsensitive) == .orderedSame }) else { continue }
+                buffer.replaceCharacters(in: match.range, with: " " + entry.target + " ")
                 usedDictionary = true
             }
+            translated = buffer as String
         }
         guard let normalized = try? NamingProfile.snakeCase(translated),
               let description = validatedDescription(normalized) else {
@@ -234,6 +257,10 @@ public struct LocalNameSuggester: Sendable {
     // Longest phrases precede their constituent words. This intentionally small
     // exact glossary is not general translation and does not invent a meaning
     // for unrecognized Chinese characters.
+    public static var defaultDictionary: [NameGlossaryEntry] {
+        dictionary.map { NameGlossaryEntry(source: $0.0, target: $0.1) }
+    }
+
     private static let dictionary: [(String, String)] = [
         ("电阻抗层析成像", "eit"), ("完全电极模型", "cem"),
         ("唯一性证明", "uniqueness_proof"), ("凸反演", "convex_inversion"),

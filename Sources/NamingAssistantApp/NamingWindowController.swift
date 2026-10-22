@@ -9,7 +9,7 @@ private final class NamingRow {
     let originalStem: String
     let isStandardName: Bool
     var included = true
-    var category: NamingCategory = .research
+    var category: String = "research"
     var description: String
     var date = Date()
     var dateConfirmed = false
@@ -21,13 +21,15 @@ private final class NamingRow {
 
     init(url: URL, isDirectory: Bool) {
         self.url = url
+        let preferences = NamingPreferencesStore.categories()
+        self.category = preferences.visibleOptions.first(where: { $0.id == preferences.defaultID })?.token ?? "research"
         self.isDirectory = isDirectory
         self.version = isDirectory ? "" : "1"
         self.suffix = isDirectory ? "" : SafeFilenameExtension.suffix(for: url.lastPathComponent)
         let stem = isDirectory ? url.lastPathComponent : SafeFilenameExtension.stem(for: url.lastPathComponent)
         self.originalStem = stem
-        self.isStandardName = NamingProfile.matchesStandardStem(stem, kind: isDirectory ? .projectFolder : .file)
-        let fallback = LocalNameSuggester.dictionarySuggestion(basename: stem)
+        self.isStandardName = NamingProfile.matchesStandardStem(stem, kind: isDirectory ? .projectFolder : .file, categoryTokens: preferences.options.map(\.token))
+        let fallback = LocalNameSuggester.dictionarySuggestion(basename: stem, glossary: NamingPreferencesStore.glossary())
         if let suggestion = fallback.suggestion, suggestion.source == .localDictionary {
             self.description = suggestion.description
             self.suggestionInfo = "来源：本地词典；请核对英文含义。" + localModelAvailabilityText(fallback.modelAvailability)
@@ -77,10 +79,22 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
     private let removeButton = NSButton(title: "移除选中项", target: nil, action: nil)
     private let addButton = NSButton(title: "添加文件或文件夹…", target: nil, action: nil)
 
-    private let categoryLabels: [(NamingCategory, String)] = [
-        (.life, "生活 · life"), (.research, "科研 · research"),
-        (.engineering, "工程 · engineering"), (.learning, "学习 · learning"), (.admin, "管理 · admin"),
-    ]
+    private var categoryOptions = NamingPreferencesStore.categories().visibleOptions
+    private var rulesPending = false
+
+    func preferencesDidChange() {
+        guard !busy else { rulesPending = true; return }
+        rulesPending = false
+        saveEditor()
+        let preferences = NamingPreferencesStore.categories()
+        categoryOptions = preferences.visibleOptions
+        let fallback = categoryOptions.first(where: { $0.id == preferences.defaultID })?.token ?? categoryOptions[0].token
+        for row in rows where !categoryOptions.contains(where: { $0.token == row.category }) { row.category = fallback }
+        categoryPopup.removeAllItems()
+        categoryPopup.addItems(withTitles: categoryOptions.map { $0.label + " · " + $0.token })
+        invalidatePreview()
+        loadEditor()
+    }
 
     init(coordinator: SafeRenameCoordinator) {
         self.coordinator = coordinator
@@ -297,7 +311,7 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
         suggestionControls.orientation = .horizontal
         suggestionControls.spacing = 12
         suggestionControls.alignment = .centerY
-        categoryPopup.addItems(withTitles: categoryLabels.map(\.1))
+        categoryPopup.addItems(withTitles: categoryOptions.map { $0.label + " · " + $0.token })
         categoryPopup.selectItem(at: 1)
         categoryPopup.target = self
         categoryPopup.action = #selector(editorChanged(_:))
@@ -451,7 +465,7 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
     private func saveEditor() {
         guard let index = editorIndex, rows.indices.contains(index) else { return }
         rows[index].description = descriptionField.stringValue
-        rows[index].category = categoryLabels[max(0, categoryPopup.indexOfSelectedItem)].0
+        if categoryOptions.indices.contains(categoryPopup.indexOfSelectedItem) { rows[index].category = categoryOptions[categoryPopup.indexOfSelectedItem].token }
         rows[index].version = versionField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         rows[index].date = datePicker.dateValue
         rows[index].dateConfirmed = dateCheckbox.state == .on
@@ -473,7 +487,7 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
         descriptionField.stringValue = row.description
         suggestionStatus.stringValue = row.suggestionInfo
         suggestionStatus.toolTip = row.suggestionInfo
-        categoryPopup.selectItem(at: categoryLabels.firstIndex { $0.0 == row.category } ?? 1)
+        categoryPopup.selectItem(at: categoryOptions.firstIndex { $0.token == row.category } ?? 0)
         versionField.stringValue = row.version
         datePicker.dateValue = row.date
         dateCheckbox.state = row.dateConfirmed ? .on : .off
@@ -489,7 +503,7 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
         invalidatePreview()
         setBusy(true, message: "正在根据原文件名生成本机英文建议；不会读取文件内容或执行改名…")
         Task {
-            let result = await LocalNameSuggester().suggest(basename: basename, useOnDeviceModel: true)
+            let result = await LocalNameSuggester().suggest(basename: basename, useOnDeviceModel: true, glossary: NamingPreferencesStore.glossary())
             // The table is disabled during generation. Identity is checked as
             // well so a late result can never be applied to a different item.
             guard rows.contains(where: { $0 === row }) else {
@@ -561,8 +575,8 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
                 if row.version.isEmpty { version = nil }
                 else if row.version.allSatisfy({ $0.isASCII && $0.isNumber }), let number = Int(row.version), number > 0 { version = number }
                 else { throw InputError.invalidVersion }
-                let request = NamingRequest(date: row.dateConfirmed ? row.date : nil, category: row.category, description: row.description, kind: row.isDirectory ? .projectFolder : .file, version: version, fileExtension: row.suffix)
-                row.proposedName = try profile.suggestName(for: request)
+                let request = NamingRequest(date: row.dateConfirmed ? row.date : nil, category: .research, description: row.description, kind: row.isDirectory ? .projectFolder : .file, version: version, fileExtension: row.suffix)
+                row.proposedName = try profile.suggestName(for: request, categoryToken: row.category)
             } catch {
                 row.proposedName = row.url.lastPathComponent
                 row.inputError = localizedInputError(error)
@@ -788,6 +802,7 @@ final class NamingWindowController: NSWindowController, NSTableViewDataSource, N
         if let message { summary.stringValue = message }
         updateControls()
         table.reloadData()
+        if !value, rulesPending { preferencesDidChange() }
         if !value, externalHistoryPending { refreshExternalHistory() }
     }
 

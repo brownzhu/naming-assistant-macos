@@ -58,19 +58,30 @@ public struct NamingProfile: Codable, Equatable, Sendable {
 
     /// A conservative recognition guard, not evidence that a date is accurate.
     /// Already formatted names are left out of automatic suggestions by default.
-    public static func matchesStandardStem(_ stem: String, kind: NamingItemKind) -> Bool {
+    public static func matchesStandardStem(_ stem: String, kind: NamingItemKind, categoryTokens: [String] = []) -> Bool {
         let date = kind == .projectFolder ? "[0-9]{4}_[0-9]{2}" : "[0-9]{4}_[0-9]{2}_[0-9]{2}"
-        let pattern = "^(?:" + date + "|undated)_(?:life|research|engineering|learning|admin)_[a-z0-9]+(?:_[a-z0-9]+)*$"
+        // Additional tokens are validated as literals before entering this fixed
+        // recognizer. User configuration is never treated as regex syntax.
+        let tokens = Set(NamingCategory.allCases.map(\.rawValue) + categoryTokens.filter(NamingCategoryToken.isValid))
+        let categories = tokens.sorted().map(NSRegularExpression.escapedPattern(for:)).joined(separator: "|")
+        let pattern = "^(?:" + date + "|undated)_(?:" + categories + ")_[a-z0-9]+(?:_[a-z0-9]+)*$"
         return stem.range(of: pattern, options: .regularExpression) != nil
     }
 
     public func suggestName(for request: NamingRequest) throws -> String {
+        try suggestName(for: request, categoryToken: request.category.rawValue)
+    }
+
+    /// Uses an explicitly chosen, validated custom filename category while
+    /// preserving the existing request/Codable API and all other naming rules.
+    public func suggestName(for request: NamingRequest, categoryToken: String) throws -> String {
+        guard NamingCategoryToken.isValid(categoryToken) else { throw NamingProfileError.invalidCategoryToken }
         guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else {
             throw NamingProfileError.invalidTimeZone(timeZoneIdentifier)
         }
 
         let description = try Self.snakeCase(request.description)
-        var fields = [try datePrefix(for: request, timeZone: timeZone), request.category.rawValue, description]
+        var fields = [try datePrefix(for: request, timeZone: timeZone), categoryToken, description]
 
         if let version = request.version {
             guard version > 0 else { throw NamingProfileError.invalidVersion }
@@ -149,6 +160,7 @@ public enum NamingProfileError: Error, Equatable, Sendable, LocalizedError {
     case folderHasExtension
     case invalidExtension
     case filenameTooLong
+    case invalidCategoryToken
 
     public var errorDescription: String? {
         switch self {
@@ -168,6 +180,8 @@ public enum NamingProfileError: Error, Equatable, Sendable, LocalizedError {
             return "The supplied extension contains an invalid filename character or trailing dot."
         case .filenameTooLong:
             return "The suggested filename exceeds 255 bytes."
+        case .invalidCategoryToken:
+            return "The category token must be at most 24 bytes of lowercase ASCII snake_case, beginning with a letter."
         }
     }
 }

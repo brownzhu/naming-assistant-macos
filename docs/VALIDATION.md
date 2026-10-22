@@ -1,5 +1,25 @@
 # Validation record
 
+## 0.3.0 category and glossary editors — 2026-10-22
+
+The new editors were verified with isolated synthetic fixtures on the current macOS 27.0.1 / Apple Silicon host. This is development evidence, not an independent security certification. The 0.2.0 evidence below is retained unchanged as a separate historical record. The five-category illustration shows the initial configuration, whose count and contents are now editable.
+
+| Check | Observed result |
+| --- | --- |
+| Standalone Swift 6 safety regressions | 128 passed, 0 failed |
+| Real FSEvents isolation tests | 8 passed, 0 failed, including exclusion of an already-standard custom-category name |
+| Debug/Release app builds and signing | Passed build and signature checks; ad-hoc signing, not Apple notarization |
+| Category editor GUI | Added a sixth category with label `客户`, filename token `client_work` and keyword `客户`; hid `life` and `learning`, leaving four visible options; saved successfully |
+| Glossary editor GUI | Saved the complete two-entry table `客户提案 = client_proposal` and `会议记录 = meeting_minutes` |
+| Restart persistence | After quit/relaunch, both edited categories and glossary were used by the new-folder card |
+| Card selection and conversion | A new isolated empty folder `客户提案` produced exactly four options, recommended `客户`, and used the description `client_proposal` |
+| Adoption and undo | Explicit adoption produced `2026_10_client_work_client_proposal`; the filesystem directory remained empty. Confirming undo in the main window restored `客户提案` |
+| Test cleanup | Restored and saved the initial five categories and complete 29-entry built-in glossary; cleared root authorization, verified monitoring disabled, verified the adopted target was absent after undo, and quit the app |
+
+The shared category model supports 1–20 total options with at least one visible option, editable labels/tokens/keywords, visibility, ordering and a visible default. The glossary is a complete table of at most 100 entries: deleting a built-in conversion does not reintroduce it from a hidden fallback, and unknown remaining text is not silently discarded. Valid explicit dictionary conversions take priority; these rules do not automatically invoke a model or upload data. Preferences are validated and saved locally in `UserDefaults`.
+
+The GUI evidence above exercises the recorded four-option configuration, rather than claiming that every possible 1–20-option layout was manually inspected. Cross-version GUI behavior, a second physical Mac, actual model output quality, real power loss, full disks and fsync fault injection remain outside the completed checks. Saving preferences does not replace the normal authorization, preview, explicit adoption and state-checked undo flow.
+
 ## 0.2.0 Finder new-folder suggestions — 2026-10-22
 
 This records evidence obtained during development, not an independent security certification. All new filesystem tests used isolated synthetic fixtures; no user document collection was renamed.
